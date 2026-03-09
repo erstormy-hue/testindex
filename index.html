@@ -40,11 +40,8 @@
 
     *{ box-sizing:border-box; }
     html, body{ height:100%; }
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
-      color:var(--ink);
-      body{
+
+body{
   margin:0;
   font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial;
   color:var(--ink);
@@ -57,13 +54,10 @@
     radial-gradient(1200px 820px at 16% 12%, #153a70 0%, var(--bg0) 58%),
     radial-gradient(900px 560px at 88% 26%, #0e2a54 0%, transparent 60%),
     linear-gradient(180deg, var(--bg1), var(--bg0));
-      background:
-        radial-gradient(1200px 820px at 16% 12%, #153a70 0%, var(--bg0) 58%),
-        radial-gradient(900px 560px at 88% 26%, #0e2a54 0%, transparent 60%),
-        linear-gradient(180deg, var(--bg1), var(--bg0));
-      overflow-x:hidden;
-    }
 
+  overflow-x:hidden;
+}
+   
     /* Språkvisning: vi toggler body[data-lang] i JS */
     .lang{ display:inline; }
     body[data-lang="nb"] .lang.en{ display:none !important; }
@@ -400,7 +394,6 @@
   z-index: -1;
 }
 
-}
     .hero-title{
       min-width: 0;
     }
