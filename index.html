@@ -1203,7 +1203,7 @@ body{
           label: { nb: "R&B", en: "R&B" },
           sub:   { nb: "Groove / warmth / vokalrom", en: "Groove / warmth / vocal space" },
           tracks: [
-            { title: "Velvet Steps", durSec: 52, note: { nb: "Smakebit • groove", en: "Preview • groove" }, src: "audio/rnb/velvet-steps.mp3" },
+            { title: "Maybe Hey teaser", durSec: 52, note: { nb: "Smakebit • teaser", en: "Preview • teaser" }, src: "audio/Maby_hey_teaser.mp3" },
             { title: "Late Train",   durSec: 49, note: { nb: "Smakebit • warm",   en: "Preview • warm"   }, src: "audio/rnb/late-train.mp3" },
             { title: "Soft Lights",  durSec: 41, note: { nb: "Smakebit • smooth", en: "Preview • smooth" }, src: "audio/rnb/soft-lights.mp3" }
           ]
@@ -1273,6 +1273,7 @@ body{
     let activeTrackId = null;
     let activeTrackBtn = null;
     let activeWave = null;
+    let progressRaf = null;
     let lastFocus = null;
 
     const trackIndex = new Map(); // trackId -> { btn, wave, fill, title, src }
@@ -1606,6 +1607,42 @@ body{
       else t.wave.classList.remove("playing");
     }
 
+    function updateActiveProgress(){
+      if (!activeTrackId) return;
+      const t = trackIndex.get(activeTrackId);
+      if (!t) return;
+
+      const fallbackDur = Number(t.btn.dataset.durSec) || 0;
+      const dur = Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : fallbackDur;
+      const cur = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      const pct = dur > 0 ? Math.min(100, Math.max(0, (cur / dur) * 100)) : 0;
+
+      t.fill.style.width = pct + "%";
+      nowFill.style.width = pct + "%";
+      nowTime.textContent = fmt(cur);
+      nowDur.textContent = fmt(dur);
+    }
+
+    function startProgressLoop(){
+      stopProgressLoop();
+      if (reduceMotion) return;
+
+      const step = () => {
+        if (audio.paused || !activeTrackId) return;
+        updateActiveProgress();
+        progressRaf = window.requestAnimationFrame(step);
+      };
+
+      progressRaf = window.requestAnimationFrame(step);
+    }
+
+    function stopProgressLoop(){
+      if (progressRaf){
+        window.cancelAnimationFrame(progressRaf);
+        progressRaf = null;
+      }
+    }
+
     async function onTrackClick(trackId){
       const t = trackIndex.get(trackId);
       if (!t) return;
@@ -1619,6 +1656,7 @@ body{
           if (ok){
             setTrackState(trackId, "playing");
             syncNowToggleLabel("playing");
+            startProgressLoop();
           } else {
             setTrackState(trackId, "paused");
             syncNowToggleLabel("paused");
@@ -1627,6 +1665,7 @@ body{
           audio.pause();
           setTrackState(trackId, "paused");
           syncNowToggleLabel("paused");
+          stopProgressLoop();
         }
         return;
       }
@@ -1644,6 +1683,9 @@ body{
 
       now.hidden = false;
       nowTitle.textContent = t.title;
+      nowTime.textContent = "0:00";
+      nowDur.textContent = fmt(Number(t.btn.dataset.durSec) || 0);
+      nowFill.style.width = "0%";
 
       setTrackState(trackId, "loading");
       syncNowToggleLabel("loading");
@@ -1652,31 +1694,34 @@ body{
       if (ok){
         setTrackState(trackId, "playing");
         syncNowToggleLabel("playing");
+        updateActiveProgress();
+        startProgressLoop();
       } else {
         setTrackState(trackId, "paused");
         syncNowToggleLabel("paused");
       }
     }
 
-    audio.addEventListener("timeupdate", () => {
-      if (!activeTrackId) return;
-      const t = trackIndex.get(activeTrackId);
-      if (!t) return;
+    audio.addEventListener("timeupdate", updateActiveProgress);
 
-      const dur = Number.isFinite(audio.duration) ? audio.duration : 0;
-      const cur = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
-      const pct = dur > 0 ? Math.min(100, Math.max(0, (cur / dur) * 100)) : 0;
-
-      t.fill.style.width = pct + "%";
-      nowFill.style.width = pct + "%";
-      nowTime.textContent = fmt(cur);
-      nowDur.textContent = fmt(dur);
-    });
+    audio.addEventListener("loadedmetadata", updateActiveProgress);
 
     audio.addEventListener("ended", () => {
       if (!activeTrackId) return;
+      stopProgressLoop();
+      updateActiveProgress();
       setTrackState(activeTrackId, "paused");
       syncNowToggleLabel("paused");
+    });
+
+    audio.addEventListener("play", () => {
+      updateActiveProgress();
+      startProgressLoop();
+    });
+
+    audio.addEventListener("pause", () => {
+      stopProgressLoop();
+      updateActiveProgress();
     });
 
     audio.addEventListener("error", () => {
@@ -1707,12 +1752,14 @@ body{
         audio.pause();
         if (activeTrackId) setTrackState(activeTrackId, "paused");
         syncNowToggleLabel("paused");
+        stopProgressLoop();
       }
     });
 
     nowStop.addEventListener("click", () => {
       audio.pause();
       audio.currentTime = 0;
+      stopProgressLoop();
 
       if (activeTrackId){
         setTrackState(activeTrackId, "paused");
