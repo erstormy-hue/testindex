@@ -1166,6 +1166,54 @@ body{
      * - Hold previews til ca. 30–60 sek (podcast intros kan være kortere)
      */
 
+    const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+    const RNB_ROTATION_POOL = [
+      { src: "audio/Maby_hey_teaser.mp3", durSec: 52, note: { nb: "Ukens rotasjon • teaser", en: "Weekly rotation • teaser" } },
+      { src: "audio/at-the-end-rnb.mp3", durSec: 47, note: { nb: "Ukens rotasjon • warm", en: "Weekly rotation • warm" } },
+      { src: "audio/curios-spells-rnb.mp3", durSec: 43, note: { nb: "Ukens rotasjon • groove", en: "Weekly rotation • groove" } },
+      { src: "audio/glitter-love-rnb.mp3", durSec: 45, note: { nb: "Ukens rotasjon • smooth", en: "Weekly rotation • smooth" } },
+      { src: "audio/grab-a-rifle-shoot-to-dare-rnb.mp3", durSec: 44, note: { nb: "Ukens rotasjon • edge", en: "Weekly rotation • edge" } },
+      { src: "audio/hold-me-closer-rnb.mp3", durSec: 41, note: { nb: "Ukens rotasjon • mellow", en: "Weekly rotation • mellow" } },
+      { src: "audio/joride-amplified-rnb.mp3", durSec: 48, note: { nb: "Ukens rotasjon • pulse", en: "Weekly rotation • pulse" } },
+      { src: "audio/make-my-day-rnb.mp3", durSec: 42, note: { nb: "Ukens rotasjon • upbeat", en: "Weekly rotation • upbeat" } },
+      { src: "audio/sugar-on-my-skin-rnb.mp3", durSec: 46, note: { nb: "Ukens rotasjon • silky", en: "Weekly rotation • silky" } },
+      { src: "audio/the-universe-rnb.mp3", durSec: 49, note: { nb: "Ukens rotasjon • atmosphere", en: "Weekly rotation • atmosphere" } },
+      { src: "audio/what-do-you-say-rnb.mp3", durSec: 45, note: { nb: "Ukens rotasjon • vocal", en: "Weekly rotation • vocal" } }
+    ];
+
+    function getMondayWeekKey(date = new Date()) {
+      const local = new Date(date);
+      local.setHours(0, 0, 0, 0);
+      const mondayOffset = (local.getDay() + 6) % 7;
+      local.setDate(local.getDate() - mondayOffset);
+      return Math.floor(local.getTime() / WEEK_MS);
+    }
+
+    function toTrackTitle(src) {
+      const file = src.split("/").pop() || "";
+      const noExt = file.replace(/\.mp3$/i, "");
+      return noExt
+        .replace(/[-_]+/g, " ")
+        .replace(/\brnb\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function getWeeklyRnbTracks(size = 3) {
+      const total = RNB_ROTATION_POOL.length;
+      if (total === 0) return [];
+
+      const start = ((getMondayWeekKey() % total) + total) % total;
+      const picks = [];
+      for (let i = 0; i < Math.min(size, total); i += 1) {
+        const item = RNB_ROTATION_POOL[(start + i) % total];
+        picks.push({ ...item, title: toTrackTitle(item.src) });
+      }
+      return picks;
+    }
+
     const DATA = {
       genres: [
         {
@@ -1202,11 +1250,7 @@ body{
           id: "rnb",
           label: { nb: "R&B", en: "R&B" },
           sub:   { nb: "Groove / warmth / vokalrom", en: "Groove / warmth / vocal space" },
-          tracks: [
-            { title: "Maybe Hey teaser", durSec: 52, note: { nb: "Smakebit • teaser", en: "Preview • teaser" }, src: "audio/Maby_hey_teaser.mp3" },
-            { title: "Late Train",   durSec: 49, note: { nb: "Smakebit • warm",   en: "Preview • warm"   }, src: "audio/rnb/late-train.mp3" },
-            { title: "Soft Lights",  durSec: 41, note: { nb: "Smakebit • smooth", en: "Preview • smooth" }, src: "audio/rnb/soft-lights.mp3" }
-          ]
+          tracks: getWeeklyRnbTracks(3)
         },
         {
           id: "edm",
