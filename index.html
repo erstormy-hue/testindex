@@ -1166,6 +1166,60 @@ body{
      * - Hold previews til ca. 30–60 sek (podcast intros kan være kortere)
      */
 
+    const DAY_MS = 24 * 60 * 60 * 1000;
+
+    const RNB_ROTATION_POOL = [
+      { src: "audio/Maby_hey_teaser.mp3", durSec: 52, note: { nb: "Dagens rotasjon • teaser", en: "Daily rotation • teaser" } },
+      { src: "audio/at-the-end-rnb.mp3", durSec: 47, note: { nb: "Dagens rotasjon • warm", en: "Daily rotation • warm" } },
+      { src: "audio/curios-spells-rnb.mp3", durSec: 43, note: { nb: "Dagens rotasjon • groove", en: "Daily rotation • groove" } },
+      { src: "audio/glitter-love-rnb.mp3", durSec: 45, note: { nb: "Dagens rotasjon • smooth", en: "Daily rotation • smooth" } },
+      { src: "audio/grab-a-rifle-shoot-to-dare-rnb.mp3", durSec: 44, note: { nb: "Dagens rotasjon • edge", en: "Daily rotation • edge" } },
+      { src: "audio/hold-me-closer-rnb.mp3", durSec: 41, note: { nb: "Dagens rotasjon • mellow", en: "Daily rotation • mellow" } },
+      { src: "audio/joride-amplified-rnb.mp3", durSec: 48, note: { nb: "Dagens rotasjon • pulse", en: "Daily rotation • pulse" } },
+      { src: "audio/make-my-day-rnb.mp3", durSec: 42, note: { nb: "Dagens rotasjon • upbeat", en: "Daily rotation • upbeat" } },
+      { src: "audio/sugar-on-my-skin-rnb.mp3", durSec: 46, note: { nb: "Dagens rotasjon • silky", en: "Daily rotation • silky" } },
+      { src: "audio/the-universe-rnb.mp3", durSec: 49, note: { nb: "Dagens rotasjon • atmosphere", en: "Daily rotation • atmosphere" } },
+      { src: "audio/what-do-you-say-rnb.mp3", durSec: 45, note: { nb: "Dagens rotasjon • vocal", en: "Daily rotation • vocal" } }
+    ];
+
+    function getDayKey(date = new Date()) {
+      const local = new Date(date);
+      local.setHours(0, 0, 0, 0);
+      return Math.floor(local.getTime() / DAY_MS);
+    }
+
+    function toTrackTitle(src) {
+      const file = src.split("/").pop() || "";
+      const noExt = file.replace(/\.mp3$/i, "");
+      return noExt
+        .replace(/[-_]+/g, " ")
+        .replace(/\brnb\b/gi, "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .replace(/\b\w/g, c => c.toUpperCase());
+    }
+
+    function normalizeTrack(track) {
+      if (track && track.title) return track;
+      return { ...track, title: toTrackTitle(track?.src || "") };
+    }
+
+    function getGenreSeed(genreId = "") {
+      return Array.from(genreId).reduce((sum, ch) => sum + ch.charCodeAt(0), 0);
+    }
+
+    function getDailyTracks(pool, genreId, size = 3) {
+      const total = pool.length;
+      if (total === 0) return [];
+
+      const start = (((getDayKey() + getGenreSeed(genreId)) % total) + total) % total;
+      const picks = [];
+      for (let i = 0; i < Math.min(size, total); i += 1) {
+        picks.push(pool[(start + i) % total]);
+      }
+      return picks;
+    }
+
     const DATA = {
       genres: [
         {
@@ -1202,11 +1256,7 @@ body{
           id: "rnb",
           label: { nb: "R&B", en: "R&B" },
           sub:   { nb: "Groove / warmth / vokalrom", en: "Groove / warmth / vocal space" },
-          tracks: [
-            { title: "Maybe Hey teaser", durSec: 52, note: { nb: "Smakebit • teaser", en: "Preview • teaser" }, src: "audio/Maby_hey_teaser.mp3" },
-            { title: "Late Train",   durSec: 49, note: { nb: "Smakebit • warm",   en: "Preview • warm"   }, src: "audio/rnb/late-train.mp3" },
-            { title: "Soft Lights",  durSec: 41, note: { nb: "Smakebit • smooth", en: "Preview • smooth" }, src: "audio/rnb/soft-lights.mp3" }
-          ]
+          tracks: RNB_ROTATION_POOL.map(normalizeTrack)
         },
         {
           id: "edm",
@@ -1230,6 +1280,71 @@ body{
         }
       ]
     };
+
+    const DAILY_ROTATING_GENRES = new Set(["film", "podcast", "pop", "rnb", "edm", "ambient"]);
+    const GITHUB_REPO_OWNER = "erstormy-hue";
+    const GITHUB_REPO_NAME = "testindex";
+    const GENRE_AUDIO_FOLDERS = {
+      film: "film-music",
+      podcast: "podcast-intro",
+      pop: "pop",
+      edm: "edm",
+      ambient: "classical-ambient"
+    };
+
+    function getDefaultGenreNote() {
+      return { nb: "Dagens rotasjon", en: "Daily rotation" };
+    }
+
+    function applyDailyGenreRotations(size = 3) {
+      DATA.genres.forEach((genre) => {
+        if (!DAILY_ROTATING_GENRES.has(genre.id)) return;
+        if (!Array.isArray(genre.tracks) || genre.tracks.length === 0) return;
+
+        const normalizedPool = genre.tracks.map(normalizeTrack);
+        genre.tracks = getDailyTracks(normalizedPool, genre.id, size);
+      });
+    }
+
+    async function fetchGenreTracksFromGitHub(genreId) {
+      const folder = GENRE_AUDIO_FOLDERS[genreId];
+      if (!folder) return [];
+
+      const endpoint = `https://api.github.com/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/audio/${encodeURIComponent(folder)}`;
+      const res = await fetch(endpoint, { headers: { "Accept": "application/vnd.github+json" } });
+      if (!res.ok) return [];
+
+      const files = await res.json();
+      if (!Array.isArray(files)) return [];
+
+      return files
+        .filter(file => file && file.type === "file" && typeof file.name === "string" && /\.mp3$/i.test(file.name))
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .map((file) => ({
+          title: toTrackTitle(file.name),
+          durSec: 45,
+          note: getDefaultGenreNote(),
+          src: `audio/${folder}/${file.name}`
+        }));
+    }
+
+    async function hydrateGenrePoolsFromGitHub() {
+      const tasks = DATA.genres.map(async (genre) => {
+        if (!DAILY_ROTATING_GENRES.has(genre.id)) return;
+        if (genre.id === "rnb") return; // R&B bruker egen pool i repo-roten
+
+        try {
+          const fetchedTracks = await fetchGenreTracksFromGitHub(genre.id);
+          if (fetchedTracks.length > 0) {
+            genre.tracks = fetchedTracks;
+          }
+        } catch (err) {
+          console.warn(`Kunne ikke hente spor for ${genre.id} fra GitHub API`, err);
+        }
+      });
+
+      await Promise.all(tasks);
+    }
 
     // DOM
     const yearEl = document.getElementById("year");
@@ -1881,9 +1996,15 @@ body{
     });
 
     // Init
-    render();
-    setLanguage(lang);
-    openGenre("film", {scroll:false, fromSidebar:false});
+    async function initApp(){
+      await hydrateGenrePoolsFromGitHub();
+      applyDailyGenreRotations(3);
+      render();
+      setLanguage(lang);
+      openGenre("film", {scroll:false, fromSidebar:false});
+    }
+
+    initApp();
   </script>
 </body>
 </html>
